@@ -48,6 +48,7 @@ lowest_turnout = data %>%
   arrange(election, turnout)
 
 # Creating a frequency table for lowest turnout wards/precincts (wards on left, precincts on top)
+
 ftable(lowest_turnout$ward, lowest_turnout$precinct)
 ```
 
