@@ -1,0 +1,187 @@
+---
+title: "Maps"
+author: "Dasha Metropolitansky"
+date: "3/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+library(readxl)
+library(classInt)
+library(sf)
+library(magick)
+```
+
+### Data processing
+```{r message=FALSE, warning=FALSE}
+election_data = read_xlsx("elections_data.xlsx") %>% 
+  mutate(election = as.character(election),
+         year = substr(election, start = 1, stop = 4),
+         num_registered = as.numeric(num_registered),
+         num_voters = as.numeric(num_voters),
+         num_residents = as.numeric(num_residents),
+         turnout = round(num_voters/num_registered*100,2)) %>%
+  filter(!(ward==5 & precinct==2.5))
+
+precincts = st_read("Precincts.geojson") %>%
+  select(-Plan_Dist)
+```
+
+```{r message=FALSE, warning=FALSE} 
+data = election_data %>% 
+  mutate(ward_precinct = paste0(str_pad(ward, width=2, side="left", pad="0"),str_pad(precinct, width=2, side="left", pad="0"))) %>%
+  select(election, year, turnout, ward_precinct) %>%
+  left_join(precincts, by=c("ward_precinct" = "WARD_PRECINCT")) %>%
+  select(-c(OBJECTID, PRECINCT))
+
+classes = classIntervals(data$turnout, n = 5, style = "jenks")
+data = data %>% 
+  mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
+```
+
+### Maps
+
+Year-by-year comparison: 
+```{r}
+ggplot() +                                                                          
+  geom_sf(data = data,                                                      
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          colour = 'black',                                                         
+          size = 0.3) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+  coord_sf(datum = NA) +
+  facet_wrap(vars(year))
+```
+
+Animation: 
+```{r}
+year_range = seq(2005,2017,2)
+
+maplist = lapply(year_range, function(yr) {
+  ggmap = ggplot(data %>% filter(year == yr)) + 
+    geom_sf(aes(fill = turnout_class,
+                geometry = geometry),                                       
+                colour = 'white',
+                size = 0.3) +
+    scale_fill_brewer(palette = "PuBu",
+                      name = "Voter Turnout (%)") +
+    labs(x = NULL, y = NULL,                                                          
+       title = paste(yr, "Voter Turnout in Boston"),      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+    theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+    coord_sf(datum = NA)
+  
+    ggsave(paste('../anim-', yr, '.png', sep=''),
+           width = 10, height = 4, units = 'in', pointsize = 12, dpi=150)
+    
+    return(ggmap)
+  })
+
+imglayers = sapply(year_range, function(yr) {
+  image_read(paste('../anim-', yr, '.png', sep=''))
+})
+
+image_animate(image_join(imglayers), fps = 0.5, dispose = "previous")
+
+# Delete the individual animated files 
+```
+
+NEXT: Use census data (income level, age)
+
+### Data anaylysis
+
+Turnout over time:
+```{r}
+overall_turnout = election_data %>% 
+  group_by(year) %>%
+  summarize(total_turnout = sum(num_voters)/sum(num_registered))
+
+ggplot(overall_turnout, aes(x=year, y = round(total_turnout*100,2), group = 1)) + 
+  geom_line() + 
+  geom_point()
+
+# Make sure y-axis starts at 0 
+# Make sure x-axis starts exactly at 2005 and ends at 2017 
+# Add axis labels and title 
+# Clean up graph background
+# Make points bigger 
+```
+
+```{r}
+election_data %>% ggplot() + geom_histogram(aes(x=turnout)) + facet_wrap(vars(year))
+```
+
+```{r}
+election_data %>% 
+  group_by(year) %>%
+  summarize(mean= mean(turnout),
+            sd = sd(turnout),
+            min = min(turnout),
+            max = max(turnout),
+            range = max-min)
+```
+
+Lowest mean wards:
+```{r}
+x = election_data %>%
+  group_by(year, ward) %>% 
+  summarize(mean = mean(turnout),
+            sd = sd(turnout)) %>%
+  top_n(-5, mean) %>%
+  arrange(year, mean)
+
+ftable(x$ward)
+```
+
+Highest standard dev wards:
+```{r}
+y = election_data %>%
+  group_by(year, ward) %>% 
+  summarize(mean = mean(turnout),
+            sd = sd(turnout)) %>%
+  top_n(5, sd) %>%
+  arrange(year, sd)
+
+ftable(y$ward)
+```
+
+```{r}
+z = election_data %>%
+  group_by(year, ward) %>% 
+  summarize(min = min(turnout),
+            max = max(turnout),
+            range = max-min) %>%
+  top_n(5, range) %>%
+  arrange(year, range)
+
+ftable(z$ward)
+```
+
+```{r}
+election_data %>% 
+  filter(ward == 13) %>% 
+  group_by(year) %>% 
+  summarize(mean = mean(turnout),
+            min = min(turnout), 
+            max = max(turnout),
+            range = max-min)
+```
+
+
