@@ -28,6 +28,10 @@ election_data = read_xlsx("elections_data.xlsx") %>%
 
 precincts = st_read("Precincts.geojson") %>%
   select(-Plan_Dist)
+
+neighborhoods = st_read("Boston_Neighborhoods.geojson")
+
+dem_data = read_xlsx("dem_data_2013_2017.xlsx")
 ```
 
 ```{r message=FALSE, warning=FALSE} 
@@ -103,85 +107,31 @@ image_animate(image_join(imglayers), fps = 0.5, dispose = "previous")
 # Delete the individual animated files 
 ```
 
-NEXT: Use census data (income level, age)
-
-### Data anaylysis
-
-Turnout over time:
+Neighborhoods
 ```{r}
-overall_turnout = election_data %>% 
-  group_by(year) %>%
-  summarize(total_turnout = sum(num_voters)/sum(num_registered))
-
-ggplot(overall_turnout, aes(x=year, y = round(total_turnout*100,2), group = 1)) + 
-  geom_line() + 
-  geom_point()
-
-# Make sure y-axis starts at 0 
-# Make sure x-axis starts exactly at 2005 and ends at 2017 
-# Add axis labels and title 
-# Clean up graph background
-# Make points bigger 
+ggplot() +                                                                          
+  geom_sf(data = neighborhoods,                                                      
+          aes(geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0.3) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+  coord_sf(datum = NA)
 ```
 
 ```{r}
-election_data %>% ggplot() + geom_histogram(aes(x=turnout)) + facet_wrap(vars(year))
+neighborhoods %>%
+  select(Name, geometry)
 ```
 
-```{r}
-election_data %>% 
-  group_by(year) %>%
-  summarize(mean= mean(turnout),
-            sd = sd(turnout),
-            min = min(turnout),
-            max = max(turnout),
-            range = max-min)
-```
 
-Lowest mean wards:
-```{r}
-x = election_data %>%
-  group_by(year, ward) %>% 
-  summarize(mean = mean(turnout),
-            sd = sd(turnout)) %>%
-  top_n(-5, mean) %>%
-  arrange(year, mean)
-
-ftable(x$ward)
-```
-
-Highest standard dev wards:
-```{r}
-y = election_data %>%
-  group_by(year, ward) %>% 
-  summarize(mean = mean(turnout),
-            sd = sd(turnout)) %>%
-  top_n(5, sd) %>%
-  arrange(year, sd)
-
-ftable(y$ward)
-```
-
-```{r}
-z = election_data %>%
-  group_by(year, ward) %>% 
-  summarize(min = min(turnout),
-            max = max(turnout),
-            range = max-min) %>%
-  top_n(5, range) %>%
-  arrange(year, range)
-
-ftable(z$ward)
-```
-
-```{r}
-election_data %>% 
-  filter(ward == 13) %>% 
-  group_by(year) %>% 
-  summarize(mean = mean(turnout),
-            min = min(turnout), 
-            max = max(turnout),
-            range = max-min)
-```
 
 
