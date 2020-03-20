@@ -21,7 +21,6 @@ The dataset contains 5 variables (columns (ward, precinct, election date, number
 
 ```{r message=FALSE, warning=FALSE}
 # Reading in and processing the data
-
 data = read_xlsx("elections_data.xlsx") %>% 
   mutate(election = as.character(election),
          num_registered = as.numeric(num_registered),
@@ -32,15 +31,13 @@ data = read_xlsx("elections_data.xlsx") %>%
 
 ```{r}
 # A preview of the data
-
 head(data)
 ```
 
 ### Finding the lowest turnout areas 
 
 ```{r}
-# Calculating the lowest turnout wards/precincts from 2017-2005, excluding Ward 1 Precinct 15
-
+# Calculating the lowest turnout wards/precincts from 2005-2017, excluding Ward 1 Precinct 15
 lowest_turnout = data %>%
   filter(!(ward == 1 & precinct == 15)) %>% 
   group_by(election) %>%
@@ -48,7 +45,6 @@ lowest_turnout = data %>%
   arrange(election, turnout)
 
 # Creating a frequency table for lowest turnout wards/precincts (wards on left, precincts on top)
-
 ftable(lowest_turnout$ward, lowest_turnout$precinct)
 ```
 
@@ -65,7 +61,6 @@ The following wards/precincts were among the ten wards/precincts with the lowest
 
 ```{r}
 # Calculating the highest turnout wards/precincts from 2017-2005, excluding Ward 1 Precinct 15
-
 highest_turnout = data %>%
   filter(!(ward == 1 & precinct == 15)) %>% 
   group_by(election) %>%
@@ -73,7 +68,6 @@ highest_turnout = data %>%
   arrange(election, turnout)
 
 # Creating a frequency table for lowest turnout wards/precincts (wards on left, precincts on top)
-
 ftable(highest_turnout$ward, highest_turnout$precinct)
 ```
 
