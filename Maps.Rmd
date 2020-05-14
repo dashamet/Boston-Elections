@@ -5,7 +5,7 @@ date: "3/1/2020"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, echo=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(stringr)
@@ -18,20 +18,34 @@ library(magick)
 ### Data processing
 ```{r message=FALSE, warning=FALSE}
 election_data = read_xlsx("elections_data.xlsx") %>% 
+  filter(!(ward==5 & precinct==2.5)) %>%
   mutate(election = as.character(election),
          year = substr(election, start = 1, stop = 4),
          num_registered = as.numeric(num_registered),
          num_voters = as.numeric(num_voters),
          num_residents = as.numeric(num_residents),
-         turnout = round(num_voters/num_registered*100,2)) %>%
-  filter(!(ward==5 & precinct==2.5))
+         turnout = round(num_voters/num_registered*100,2))
 
 precincts = st_read("Precincts.geojson") %>%
   select(-Plan_Dist)
 
 neighborhoods = st_read("Boston_Neighborhoods.geojson")
 
-dem_data = read_xlsx("dem_data_2013_2017.xlsx")
+dem_data = read_xlsx("dem_data_2013_2017.xlsx") %>% 
+  mutate(poverty_rate = poverty_rate * 100,
+         undergrad = undergrad * 100,
+         `20_34` = `20_34` * 100,
+          `65_plus` = `65_plus` * 100,
+         moved_from_abroad = moved_from_abroad * 100,
+         per_capita_income = per_capita_income * 100)
+
+centers = as.data.frame(st_read("Community_Centers.geojson")) %>% 
+  select(-OBJECTID)
+centers_coords = unlist(st_geometry(centers$geometry)) %>% 
+  matrix(ncol=2,byrow=TRUE) %>% 
+  as.data.frame %>%
+  set_names(c("lon", "lat"))
+centers = cbind(centers,centers_coords)
 ```
 
 ```{r message=FALSE, warning=FALSE} 
@@ -48,14 +62,15 @@ data = data %>%
 
 ### Maps
 
-Year-by-year comparison: 
+Year by year comparisons:
+
 ```{r}
 ggplot() +                                                                          
   geom_sf(data = data,                                                      
           aes(fill = turnout_class,
               geometry = geometry),                                       
           colour = 'black',                                                         
-          size = 0.3) +                                                             
+          size = 0.1) +                                                             
   scale_fill_brewer(palette = "PuBu",                                                
                     name = "Voter Turnout (%)") +                               
   labs(x = NULL, y = NULL,                                                          
@@ -68,6 +83,10 @@ ggplot() +
         plot.subtitle=element_text(size=9)) +                                               
   coord_sf(datum = NA) +
   facet_wrap(vars(year))
+```
+
+
+```{r}
 ```
 
 Animation: 
@@ -102,7 +121,8 @@ imglayers = sapply(year_range, function(yr) {
   image_read(paste('../anim-', yr, '.png', sep=''))
 })
 
-image_animate(image_join(imglayers), fps = 0.5, dispose = "previous")
+image_animate(image_join(imglayers), fps = 0.8, dispose = "previous")
+#image_write(animation, path = "voting_gif.png")
 
 # Delete the individual animated files 
 ```
@@ -128,10 +148,325 @@ ggplot() +
 ```
 
 ```{r}
-neighborhoods %>%
-  select(Name, geometry)
+neighborhood_dem = neighborhoods %>%
+  select(Name, geometry) %>% 
+  inner_join(dem_data, by = c("Name" = "neighborhood"))
 ```
 
+Poverty rate:
+```{r}
+poverty_classes = classIntervals(dem_data$poverty_rate, n = 5, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(poverty_class = cut(poverty_rate, poverty_classes$brks, include.lowest = T))
 
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = poverty_class,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Poverty rate (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Poverty Rate in Boston",      
+       subtitle = "% of residents in poverty out of those whose poverty status is known") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
 
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2015 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
 
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```
+
+undergrad student
+```{r}
+undergrad_classes = classIntervals(dem_data$undergrad, n = 5, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(undergrad_class = cut(undergrad, undergrad_classes$brks, include.lowest = T))
+
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = undergrad_class,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Undergrad Students (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Undergraduate Students in Boston",      
+       subtitle = "% of population enrolled in an undergraduate college program") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
+
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2015 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
+
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```
+
+20-34
+```{r}
+classes_20_34 = classIntervals(dem_data$`20_34`, n = 5, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(class_20_34 = cut(`20_34`, classes_20_34$brks, include.lowest = T))
+
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = class_20_34,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "20-34 Year Olds (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "20 - 34 Year Olds in Boston",      
+       subtitle = "% of population aged 20 to 34") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
+
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2015 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
+
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```
+
+64+
+```{r}
+classes_65_plus = classIntervals(dem_data$`65_plus`, n = 4, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(class_65_plus = cut(`65_plus`, classes_65_plus$brks, include.lowest = T))
+
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = class_65_plus,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "65+ Year Olds (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "65+ Year Olds in Boston",      
+       subtitle = "% of population aged 65+") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
+
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2017 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
+
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```
+
+moved from abroad
+```{r}
+classes_abroad = classIntervals(dem_data$moved_from_abroad, n = 5, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(class_abroad = cut(moved_from_abroad, classes_abroad$brks, include.lowest = T))
+
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = class_abroad,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Immigrants (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Immigrants in Boston",      
+       subtitle = "% of population that moved to Boston from abroad") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
+
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2015 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
+
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```
+
+per_capita_income
+```{r}
+classes_income = classIntervals(dem_data$per_capita_income, n = 4, style = "jenks")
+neighborhood_dem = neighborhood_dem %>% 
+  mutate(class_income = cut(per_capita_income, classes_income$brks, include.lowest = T))
+
+plot1 = neighborhood_dem %>% ggplot() +                                                                          
+  geom_sf(aes(fill = class_income,
+              geometry = geometry*5),                                       
+          colour = 'black',                                                         
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Per Capita Income ($)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Per Capita Income in Boston",      
+       subtitle = "Aggregate income in 2017 inflation-adjusted dollars divided by population") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                    hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA)
+
+plot2 = ggplot() +                                                                          
+  geom_sf(data = filter(data, year==2015 & ward_precinct!='0115'),                                                     
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          size = 0) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +
+  labs(x = NULL, y = NULL,                                                          
+       title = "2015 Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9,
+                                   hjust = 0.5),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") + 
+        #plot.margin = unit(c(0, 0, 0, 0), "cm")) +                                               
+  coord_sf(datum = NA) +
+  scale_x_continuous(limits = c(740000, 797200)) + 
+  scale_y_continuous(limits = c(2907900, 2971700))
+
+plot_grid(plot1, plot2, align = 'h', rel_heights = c(1,1.5), rel_widths = c(1,1))
+```

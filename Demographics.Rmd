@@ -1,0 +1,393 @@
+---
+title: "Demographics"
+author: "Dasha Metropolitansky"
+date: "4/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=TRUE}
+library(tidyverse)
+library(stringr)
+library(readxl)
+library(janitor)
+library(classInt)
+library(sf)
+library(magick)
+```
+
+### Data processing
+```{r}
+election_data = read_xlsx("elections_data.xlsx") %>% 
+  mutate(election = as.character(election),
+         num_registered = as.numeric(num_registered),
+         num_voters = as.numeric(num_voters),
+         num_residents = as.numeric(num_residents),
+         turnout = round(num_voters/num_registered*100,2)) %>%
+  mutate(ward_precinct = paste0(str_pad(ward, width=2, side="left", pad="0"),
+                                str_pad(precinct, width=2,side="left",pad="0")))
+election_data$ward_precinct[election_data$ward_precinct == "052.5"] = "0502A"
+
+precincts = st_read("Precincts.geojson") %>%
+  select(-Plan_Dist)
+
+wards = st_read("Wards.geojson")
+```
+
+```{r}
+election_2015 = election_data %>%
+  filter(election == "2015-11-03") %>% 
+  select(ward_precinct, turnout)
+
+election_2017 = election_data %>% 
+    filter(election == "2017-11-07") %>% 
+  select(ward_precinct, turnout)
+```
+
+### ANALYSIS STARTS HERE
+
+Average election turnout from 2005 - 2017:
+```{r}
+election_data %>% 
+  group_by(election) %>% 
+  filter(!is.na(num_voters)) %>%
+  summarize(avg_turnout = sum(num_voters)/sum(num_registered)) %>% 
+  summarize(overall_avg_turnout = mean(avg_turnout))
+```
+
+Average turnout, SD, Max, Min, range for each year:
+```{r}
+election_data %>% 
+  group_by(election) %>%
+  filter(!is.na(num_voters)) %>%
+  summarize(mean = sum(num_voters)/sum(num_registered) * 100,
+            sd = sd(turnout),
+            min = min(turnout),
+            max = max(turnout),
+            range = max-min)
+```
+
+Static map turnout for each year:
+```{r}
+map_data = election_data %>% 
+  filter(!is.na(turnout)) %>%
+  mutate(year = substr(election, start = 1, stop = 4)) %>%
+  select(year, turnout, ward_precinct) %>%
+  left_join(precincts, by=c("ward_precinct" = "WARD_PRECINCT")) %>%
+  select(-c(OBJECTID, PRECINCT))
+
+classes = classIntervals(map_data$turnout, n = 5, style = "jenks")
+map_data = map_data %>% 
+  mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
+
+ggplot() +                                                                          
+  geom_sf(data = map_data,                                                      
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          colour = 'black',                                                         
+          size = 0.1) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+  coord_sf(datum = NA) +
+  facet_wrap(vars(year))
+```
+
+Animated map turnout for each year:
+```{r}
+year_range = seq(2005,2017,2)
+
+maplist = lapply(year_range, function(yr) {
+  ggmap = ggplot(map_data %>% filter(year == yr)) + 
+    geom_sf(aes(fill = turnout_class,
+                geometry = geometry),                                       
+                colour = 'white',
+                size = 0.3) +
+    scale_fill_brewer(palette = "PuBu",
+                      name = "Voter Turnout (%)") +
+    labs(x = NULL, y = NULL,                                                          
+       title = paste(yr, "Voter Turnout in Boston"),      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+    theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+    coord_sf(datum = NA)
+  
+    ggsave(paste('../anim-', yr, '.png', sep=''),
+           width = 10, height = 4, units = 'in', pointsize = 12, dpi=150)
+    
+    return(ggmap)
+  })
+
+imglayers = sapply(year_range, function(yr) {
+  image_read(paste('../anim-', yr, '.png', sep=''))
+})
+
+image_animate(image_join(imglayers), fps = 0.8, dispose = "previous")
+```
+
+Map of average turnout by precinct:
+```{r}
+map_data = election_data %>% 
+  filter(!is.na(turnout)) %>%
+  group_by(ward_precinct, election) %>%
+  summarize(yr_turnout = sum(num_voters)/sum(num_registered)) %>% 
+  summarize(turnout = mean(yr_turnout) * 100) %>%
+  left_join(precincts, by=c("ward_precinct" = "WARD_PRECINCT")) %>%
+  select(-c(OBJECTID, PRECINCT))
+
+classes = classIntervals(map_data$turnout, n = 5, style = "jenks")
+map_data = map_data %>% 
+  mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
+
+ggplot() +                                                                          
+  geom_sf(data = map_data,                                                      
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          colour = 'black',                                                         
+          size = 0.1) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +                                               
+  coord_sf(datum = NA)
+```
+
+Map of average turnout by ward:
+```{r}
+map_data = election_data %>% 
+  filter(!is.na(turnout)) %>%
+  group_by(ward, election) %>% 
+  summarize(yr_turnout = sum(num_voters)/sum(num_registered)) %>% 
+  summarize(turnout = mean(yr_turnout) * 100) %>%
+  left_join(wards, by=c("ward" = "WARD")) %>%
+  select(-c(OBJECTID, CNT_WARD))
+
+classes = classIntervals(map_data$turnout, n = 3, style = "jenks")
+map_data = map_data %>% 
+  mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
+
+ggplot() +                                                                          
+  geom_sf(data = map_data,                                                      
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          colour = 'black',                                                         
+          size = 0.1) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +  
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle=element_text(size=9)) +
+  coord_sf(datum = NA)
+```
+
+Frequency table for 10 lowest precincts:
+```{r}
+lowest_turnout = election_data %>%
+  filter(!(ward == 1 & precinct == 15)) %>% 
+  group_by(election) %>%
+  top_n(-10, turnout) %>%
+  select(ward, precinct, election, turnout)
+
+# Creating a frequency table for lowest turnout wards/precincts (wards on left, precincts on top)
+ftable(lowest_turnout$ward, lowest_turnout$precinct)
+```
+
+Calculating stuff about lowest turnout precincts: 
+*NOTE CHANGE 70 to 80 IN SECOND CHUNK WHEN UPDATE TO INCLUDE 2019! *
+```{r}
+# precincts that have ever been in the bottom 10 
+lowest_turnout %>% 
+  group_by(ward, precinct) %>% 
+  summarize(n = n()) %>%
+  arrange(desc(n))
+
+# wards that have ever been in the bottom 10 
+lowest_turnout %>% 
+  group_by(ward) %>% 
+  summarize(n = n(),
+            pct = round(n/70 * 100,2)) # 70 because 7 elections * bottom 10
+
+# frequency of number of times a precinct has appeared in the bottom 10
+lowest_turnout %>% 
+  group_by(ward, precinct) %>% 
+  summarize(num_times_in_bottom = n()) %>% 
+  group_by(num_times_in_bottom) %>% 
+  summarize(freq = n())
+```
+
+Frequency table for 10 highest turnout precincts:
+```{r}
+# Calculating the highest turnout wards/precincts from 2017-2005, excluding Ward 1 Precinct 15
+highest_turnout = election_data %>%
+  filter(!(ward == 1 & precinct == 15)) %>% 
+  group_by(election) %>%
+  top_n(10, turnout) %>%
+  arrange(election, turnout)
+
+# Creating a frequency table for lowest turnout wards/precincts (wards on left, precincts on top)
+ftable(highest_turnout$ward, highest_turnout$precinct)
+```
+
+Calculating stuff about highest turnout precincts: 
+*NOTE CHANGE 70 to 80 IN SECOND CHUNK WHEN UPDATE TO INCLUDE 2019! *
+```{r}
+# precincts that have ever been in the top 10 
+highest_turnout %>% 
+  group_by(ward, precinct) %>% 
+  summarize(n = n()) %>%
+  arrange(desc(n))
+
+# wards that have ever been in the top 10 
+highest_turnout %>% 
+  group_by(ward) %>% 
+  summarize(n = n(),
+            pct = round(n/70 * 100,2)) # 70 because 7 elections * bottom 10
+
+# frequency of number of times a precinct has appeared in the top 10
+highest_turnout %>% 
+  group_by(ward, precinct) %>% 
+  summarize(num_times_in_bottom = n()) %>% 
+  group_by(num_times_in_bottom) %>% 
+  summarize(freq = n())
+```
+
+### School Enrollment
+
+```{r}
+school_enrollment = read_xlsx("dem_data_by_precincts.xlsx", sheet = 4, skip = 3)
+school_enrollment[,-1] = round(school_enrollment[,-1],0) # Converting all cols except first to whole numbers
+colnames(school_enrollment) = c("ward_precinct", "high_school_and_less", "undergrad", "grad", "not_enrolled")
+pct_school_enrollment = school_enrollment %>%
+  adorn_percentages() %>% 
+  mutate_at(vars(high_school_and_less:not_enrolled), function(x){x*100})
+
+x = pct_school_enrollment %>% 
+  left_join(election_2017, by = "ward_precinct")
+```
+
+```{r}
+cor(x$turnout, x$undergrad)
+cor(x$turnout, x$grad)
+cor(x$turnout, x$high_school_and_less)
+```
+
+```{r}
+# Try another graph facet-wrapping multiple election years 
+
+ggplot(data = x, aes(x=undergrad, y=turnout)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_hline(yintercept = mean(x$turnout), linetype = "dotted") + 
+  geom_vline(xintercept = mean(x$undergrad), linetype = "dotted") +
+  labs(title = "Undergraduate Population and 2017 Municipal Election Turnout in Boston",
+       subtitle = "Points represent precincts; dashed line represents the mean value",
+       caption = "\n Turnout data from Boston's Elections Commission and demographic data from Boston's Planning & Development Agency (BPDA) \n based on U.S. Census Bureau, American Community Survey 5-year Estimates 2014-2018, and BPDA Research Division Analysis",
+       x = "Undergraduates (% of precinct population)",
+       y = "Turnout (% of registered voters)") + 
+  theme_classic()
+```
+
+### Population
+
+```{r}
+population = read_xlsx("dem_data_by_precincts.xlsx", sheet = 1, skip = 3) %>% 
+  select(-2)
+population[,-1] = round(population[,-1],0) # Converting all cols except first to whole numbers
+colnames(population) = c("ward_precinct", "male_adult", "female_adult", "total_adult")
+pct_population = population %>%
+  mutate(male_adult = male_adult/total_adult * 100,
+         female_adult = female_adult/total_adult * 100)
+
+x = pct_population %>% 
+  left_join(election_2017, by = "ward_precinct")
+```
+
+```{r}
+cor(x$turnout, x$female_adult)
+cor(x$turnout, x$male_adult)
+cor(x$turnout, x$total_adult)
+```
+
+### Poverty
+
+```{r}
+poverty = read_xlsx("dem_data_by_precincts.xlsx", sheet = 3, skip = 3)
+poverty[,-1] = round(poverty[,-1],0) # Converting all cols except first to whole numbers
+colnames(poverty) = c("ward_precinct", "below_poverty", "at_above_poverty")
+pct_poverty = poverty %>%
+  adorn_percentages() %>% 
+  mutate_at(vars(below_poverty:at_above_poverty), function(x){x*100})
+
+x = pct_poverty %>% 
+  left_join(election_2017, by = "ward_precinct")
+```
+
+```{r}
+cor(x$turnout, x$below_poverty)
+cor(x$turnout, x$at_above_poverty)
+```
+
+```{r}
+# Try another graph facet-wrapping multiple election years 
+
+ggplot(data = x, aes(x=below_poverty, y=turnout)) + 
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_hline(yintercept = mean(x$turnout), linetype = "dotted") + 
+  geom_vline(xintercept = mean(x$below_poverty), linetype = "dotted") +
+  labs(title = "Population Below the Poverty Line and 2017 Municipal Election Turnout in Boston",
+       subtitle = "Points represent precincts; dashed line represents the mean value",
+       caption = "\n Turnout data from Boston's Elections Commission and demographic data from Boston's Planning & Development Agency (BPDA) \n based on U.S. Census Bureau, American Community Survey 5-year Estimates 2014-2018, and BPDA Research Division Analysis",
+       x = "% of precinct population below the poverty line",
+       y = "Turnout (% of registered voters)") + 
+  theme_classic()
+```
+
+### Mobility
+
+```{r}
+mobility = read_xlsx("dem_data_by_precincts.xlsx", sheet = 7, skip = 3)
+mobility[,-1] = round(mobility[,-1],0) # Converting all cols except first to whole numbers
+colnames(mobility) = c("ward_precinct", "same_house", "same_county", "same_state", "same_country", "abroad")
+pct_mobility  = mobility %>%
+  adorn_percentages() %>% 
+  mutate_at(vars(same_house:same_country), function(x){x*100})
+
+x = pct_mobility %>% 
+  left_join(election_2017, by = "ward_precinct")
+```
+
+```{r}
+cor(x$turnout, x$same_house)
+cor(x$turnout, x$same_county)
+cor(x$turnout, x$same_state)
+cor(x$turnout, x$same_country)
+cor(x$turnout, x$abroad)
+```
+
+### Putting everything together
+```{r}
+mod = lm(data = x, turnout ~ high_school_and_less + undergrad + grad)
+summary(mod)
+```
+

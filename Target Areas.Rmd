@@ -48,6 +48,7 @@ lowest_turnout = data %>%
 ftable(lowest_turnout$ward, lowest_turnout$precinct)
 ```
 
+
 The following wards/precincts were among the ten wards/precincts with the lowest voter turnout rates in all 7 municipal elections from 2017-2005: 
 
 * Ward 4 Precinct 10 (ranges from 1.03% to 9.17%)
