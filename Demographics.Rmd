@@ -1,11 +1,26 @@
 ---
-title: "Demographics"
+title: "A Quantitative Analysis of Turnout in Boston's Municipal Elections"
 author: "Dasha Metropolitansky"
 date: "4/2/2020"
-output: html_document
+output: html_document:
+  toc: TRUE
 ---
 
+### Overview
+
+My team in [DPI-663](https://innovategovernment.org/), a Harvard Kennedy School class on Technology and Innovation in Government, is working with the City of Boston’s Elections Commission and the Department of Innovation and Technology to tackle low voter-turnout in Boston's municipal elections. Our goal is to develop policy recommendations and product prototypes that Boston can implement to improve turnout in future municipal elections. In our to better understand the nature of the problem, our first step is to dig into the data!
+
+### The Data
+
+I used 4 datasets in this analysis:
+
+1. `precincts.geojson`: a geospatial dataset of the City of Boston's voting precincts. I obtained this data from [Analyze Boston](https://data.boston.gov/dataset/precincts). 
+2. `wards.geojson` - a geospatial dataset of the City of Boston's voting wards. I obtained this data from [Analyze Boston](https://data.boston.gov/dataset/wards). 
+3. `dem_data_by_precincts.xlsx`: a dataset containing demographic data (e.g. population, poverty, school enrollment, geographic mobility, etc.). I requested this dataset from Boston's Planning and Development Agency (BPDA), which created it using the U.S. Census Bureau and American Community Survey 5-year Estimates from 2014-2018 and BPDA Research Division analysis.
+4. `elections_data.xlsx`: a dataset containing the number of residents, the number of registered voters, the number of votes cast, and voter turnout for each precinct in Boston's municipal election from November 2005 to November 2017 (excluding special municipal elections nad preliminary municipal elections). I created this dataset using the [election data](https://www.boston.gov/departments/elections/state-and-city-election-results) available on the City of Boston website. Two important notes: (1) I calculated voter turnout for each precinct according to the City's definition: the number of votes cast divded by the number of registered voters. (2) I did not include data from the November 2019 election because I could only find [unofficial election data](https://www.boston.gov/sites/default/files/embed/u/unofficial_ward_and_precinct_breakdown_for_november_5_2019_-_updated.pdf) on the City of Boston website for this election.
+
 ```{r setup, include=FALSE, echo=TRUE}
+# Loading packages
 library(tidyverse)
 library(stringr)
 library(readxl)
@@ -15,8 +30,8 @@ library(sf)
 library(magick)
 ```
 
-### Data processing
-```{r}
+```{r include=FALSE, echo=TRUE}
+# Reading in the elections dataset
 election_data = read_xlsx("elections_data.xlsx") %>% 
   mutate(election = as.character(election),
          num_registered = as.numeric(num_registered),
@@ -24,16 +39,19 @@ election_data = read_xlsx("elections_data.xlsx") %>%
          num_residents = as.numeric(num_residents),
          turnout = round(num_voters/num_registered*100,2)) %>%
   mutate(ward_precinct = paste0(str_pad(ward, width=2, side="left", pad="0"),
-                                str_pad(precinct, width=2,side="left",pad="0")))
+                                str_pad(precinct, width=2,side="left", pad="0"))) 
 election_data$ward_precinct[election_data$ward_precinct == "052.5"] = "0502A"
 
+# Reading in the precincts dataset
 precincts = st_read("Precincts.geojson") %>%
   select(-Plan_Dist)
 
+# Reading in the wards dataset
 wards = st_read("Wards.geojson")
 ```
 
-```{r}
+```{r include=FALSE, echo=TRUE}
+# Creating subsets of the elections dataset for 2015 and 2017
 election_2015 = election_data %>%
   filter(election == "2015-11-03") %>% 
   select(ward_precinct, turnout)
@@ -43,30 +61,65 @@ election_2017 = election_data %>%
   select(ward_precinct, turnout)
 ```
 
-### ANALYSIS STARTS HERE
+### Analyzing turnout over time 
 
-Average election turnout from 2005 - 2017:
-```{r}
-election_data %>% 
+```{r include=FALSE, echo=TRUE}
+# Calculating average voter turnout from 2007-2017 by calculating the turnout for each election and averaging these values
+overall_avg_turnout = election_data %>% 
   group_by(election) %>% 
   filter(!is.na(num_voters)) %>%
   summarize(avg_turnout = sum(num_voters)/sum(num_registered)) %>% 
   summarize(overall_avg_turnout = mean(avg_turnout))
 ```
 
-Average turnout, SD, Max, Min, range for each year:
+The average voter turnout in Boston's municipal elections from 2007 to 2017, excluding special and preliminary municipal elections, is `r overall_avg_turnout[1,1]`. Note that the average voter turnout including all municipal elections would be lower. 
+
 ```{r}
-election_data %>% 
+yearly_avg_turnout_1 = election_data %>% 
   group_by(election) %>%
   filter(!is.na(num_voters)) %>%
-  summarize(mean = sum(num_voters)/sum(num_registered) * 100,
-            sd = sd(turnout),
+  summarize(mean = mean(turnout),
+            sd = sd(turnout), 
             min = min(turnout),
             max = max(turnout),
-            range = max-min)
+            range = max - min)
 ```
 
-Static map turnout for each year:
+Here's a breakdown of the average voter turnout in each municipal election. I've also included standard deviation (`sd`;a measure of how spread out the turnout among precincts is in a given election year), minimum and maximum turnout, and range (the difference between the maximum and minimum turnout): 
+`r yearly_avg_turnout_1`
+
+```{r}
+w1_p15 = election_data %>% 
+  filter(ward_precinct == "0115") %>%
+  select(-c(ward, precinct,ward_precinct))
+```
+
+One caveat to the above chart: something strange is going on in Ward 1 Precinct 15... Here are the rows corresponding to Ward 1 Precinct 15 from my elections dataset (where all data is directly from the City of Boston): 
+`r w1_p15`
+
+The first and penultimate rows of this chart seem to be inaccurate: there are fewer residents than registered voters. The City of Boston did not respond to my request for more information, so I can't answer conclusively what is going on with Ward 1 Precinct 15. 
+
+```{r}
+yearly_avg_turnout_2 = election_data %>% 
+  group_by(election) %>%
+  filter(!is.na(num_voters)) %>%
+  filter(ward_precinct != "0115") %>%
+  summarize(mean = sum(num_voters)/sum(num_registered) * 100,
+            sd = sd(turnout), 
+            min = min(turnout),
+            max = max(turnout),
+            range = max - min)
+```
+
+```{r}
+plot(election_data)
+```
+
+If I exclude it from the dataset, then the above chart breaking down voter turnout by election year changes slightly: while the mean turnout is essentially the same, the minimum turnout for every year except 2005 and 2013 increases, causing the range and the standard deviation to decrease in those years:
+`r yearly_avg_turnout_2`
+
+I illustrate the yearly turnout breakdown in two ways: an animated map of voter turnout in Boston and a series of static maps corresponding to each municipal election. 
+
 ```{r}
 map_data = election_data %>% 
   filter(!is.na(turnout)) %>%
@@ -75,33 +128,11 @@ map_data = election_data %>%
   left_join(precincts, by=c("ward_precinct" = "WARD_PRECINCT")) %>%
   select(-c(OBJECTID, PRECINCT))
 
+year_range = seq(2005,2017,2)
+
 classes = classIntervals(map_data$turnout, n = 5, style = "jenks")
 map_data = map_data %>% 
   mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
-
-ggplot() +                                                                          
-  geom_sf(data = map_data,                                                      
-          aes(fill = turnout_class,
-              geometry = geometry),                                       
-          colour = 'black',                                                         
-          size = 0.1) +                                                             
-  scale_fill_brewer(palette = "PuBu",                                                
-                    name = "Voter Turnout (%)") +                               
-  labs(x = NULL, y = NULL,                                                          
-       title = "Voter Turnout in Boston",      
-       subtitle = "% of registered voters who voted in the municipal election") +  
-  theme(panel.background = element_blank(),                                       
-        line = element_blank(),                                                    
-        axis.text = element_blank(),                                                
-        axis.title = element_blank(),
-        plot.subtitle=element_text(size=9)) +                                               
-  coord_sf(datum = NA) +
-  facet_wrap(vars(year))
-```
-
-Animated map turnout for each year:
-```{r}
-year_range = seq(2005,2017,2)
 
 maplist = lapply(year_range, function(yr) {
   ggmap = ggplot(map_data %>% filter(year == yr)) + 
@@ -131,8 +162,48 @@ imglayers = sapply(year_range, function(yr) {
   image_read(paste('../anim-', yr, '.png', sep=''))
 })
 
-image_animate(image_join(imglayers), fps = 0.8, dispose = "previous")
+animated_map_yearly_turnout = image_animate(image_join(imglayers), fps = 0.8, dispose = "previous")
 ```
+
+`r animated_map_yearly_turnout`
+
+```{r}
+static_map_yearly_turnout = ggplot() +                                                                    
+  geom_sf(data = map_data,                                                      
+          aes(fill = turnout_class,
+              geometry = geometry),                                       
+          colour = 'black',                                                         
+          size = 0.1) +                                                             
+  scale_fill_brewer(palette = "PuBu",                                                
+                    name = "Voter Turnout (%)") +                               
+  labs(x = NULL, y = NULL,                                                          
+       title = "Voter Turnout in Boston",      
+       subtitle = "% of registered voters who voted in the municipal election") +
+       #caption = "Turnout data from Boston's Elections Commission") +  
+  theme_minimal() + 
+  theme(panel.background = element_blank(),                                       
+        line = element_blank(),                                                    
+        axis.text = element_blank(),                                                
+        axis.title = element_blank(),
+        plot.subtitle = element_text(size=9,
+                                     hjust = 0.5),
+        plot.title = element_text(hjust = 0.5,
+                                  size = 13,
+                                  face = "bold"),
+        #plot.caption = element_text(hjust = 1,
+                                    #size = 7),
+        legend.title = element_text(size = 10),
+        strip.text.x = element_text(face = "bold")) +                                               
+  coord_sf(datum = NA) +
+  facet_wrap(vars(year))
+```
+
+`r static_map_yearly_turnout`
+
+**Key take-aways**
+1. Election turnout is much higher in mayoral election years (2005, 2009, 2013, 2017) than other municipal election years, like city council races. In mayoral elections, average turnout ranged from 28-38% whereas in other municipal elections, average turnout ranged from 13-18%. That's a gap of anywhere from 10 to 25 percentage points. 
+
+2. Turnout varies widely across Boston's precincts. There's anywhere from a 38 to 70 percentage point gap between the lowest turnout precinct and the highest turnout precinct in a given election year. 
 
 Map of average turnout by precinct:
 ```{r}
@@ -148,7 +219,7 @@ classes = classIntervals(map_data$turnout, n = 5, style = "jenks")
 map_data = map_data %>% 
   mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
 
-ggplot() +                                                                          
+x = ggplot() +                                                                          
   geom_sf(data = map_data,                                                      
           aes(fill = turnout_class,
               geometry = geometry),                                       
@@ -159,12 +230,22 @@ ggplot() +
   labs(x = NULL, y = NULL,                                                          
        title = "Voter Turnout in Boston",      
        subtitle = "% of registered voters who voted in the municipal election") +  
+  theme_minimal() + 
   theme(panel.background = element_blank(),                                       
         line = element_blank(),                                                    
         axis.text = element_blank(),                                                
         axis.title = element_blank(),
-        plot.subtitle=element_text(size=9)) +                                               
-  coord_sf(datum = NA)
+        plot.subtitle = element_text(size=9,
+                                     hjust = 0.5),
+        plot.title = element_text(hjust = 0.5,
+                                  size = 13,
+                                  face = "bold"),
+        #plot.caption = element_text(hjust = 1,
+                                    #size = 7),
+        legend.title = element_text(size = 10),
+        strip.text.x = element_text(face = "bold"))
+
+ggsave(filename = 'precinct_avg.png', plot = x, device = 'png')
 ```
 
 Map of average turnout by ward:
@@ -181,23 +262,32 @@ classes = classIntervals(map_data$turnout, n = 3, style = "jenks")
 map_data = map_data %>% 
   mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
 
-ggplot() +                                                                          
+x = ggplot() +                                                                          
   geom_sf(data = map_data,                                                      
           aes(fill = turnout_class,
               geometry = geometry),                                       
           colour = 'black',                                                         
-          size = 0.1) +                                                             
+          size = 0.1) + 
   scale_fill_brewer(palette = "PuBu",                                                
                     name = "Voter Turnout (%)") +                               
   labs(x = NULL, y = NULL,                                                          
-       title = "Voter Turnout in Boston",      
-       subtitle = "% of registered voters who voted in the municipal election") +  
+       title = "Voter Turnout in Boston's Wards",      
+       subtitle = "% of registered voters who voted in the municipal election, averaged over wards") +  
+  theme_minimal() + 
   theme(panel.background = element_blank(),                                       
         line = element_blank(),                                                    
         axis.text = element_blank(),                                                
         axis.title = element_blank(),
-        plot.subtitle=element_text(size=9)) +
-  coord_sf(datum = NA)
+        plot.subtitle = element_text(size=9,
+                                     hjust = 0.5),
+        plot.title = element_text(hjust = 0.5,
+                                  size = 13,
+                                  face = "bold"),
+        #plot.caption = element_text(hjust = 1,
+                                    #size = 7),
+        legend.title = element_text(size = 10))
+
+ggsave(filename = 'ward_avg.png', plot = x, device = 'png')
 ```
 
 Frequency table for 10 lowest precincts:
@@ -387,7 +477,8 @@ cor(x$turnout, x$abroad)
 
 ### Putting everything together
 ```{r}
-mod = lm(data = x, turnout ~ high_school_and_less + undergrad + grad)
+x = election_data %>% left_join(pct_mobility, by = "ward_precinct") %>% left_join(pct_population, by = "ward_precinct") %>% left_join(pct_school_enrollment, by = "ward_precinct") %>% left_join(pct_poverty, by = "ward_precinct") 
+mod = lm(data = x, turnout ~ same_house + same_county + same_state + same_country + male_adult + high_school_and_less + undergrad + grad + below_poverty)
 summary(mod)
 ```
 
