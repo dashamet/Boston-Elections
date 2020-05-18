@@ -7,7 +7,7 @@ output: html_document
 
 ## Overview
 
-Our team of students in [DPI-663](https://innovategovernment.org/), a Harvard Kennedy School class on Technology and Innovation in Government, is working with the City of Boston’s Elections Commission and the Department of Innovation and Technology to tackle low voter-turnout in Boston's municipal elections. Our goal is to develop policy recommendations and product prototypes that Boston can implement to improve turnout in future municipal elections. In our to better understand the problem, our first step is to dig into the data!
+Our team of students in [DPI-663](https://innovategovernment.org/), a Harvard Kennedy School class on Technology and Innovation in Government, is working with the City of Boston’s Elections Commission and the Department of Innovation and Technology to tackle low voter-turnout in Boston's municipal elections. Our goal is to develop policy recommendations and product prototypes that Boston can implement to improve turnout in future municipal elections. In order to better understand the problem, our first step was to dig into the data!
 
 ## The data
 
@@ -15,7 +15,7 @@ I used 4 datasets in this analysis:
 
 1. `precincts.geojson`: a geospatial dataset of the City of Boston's voting precincts. I obtained this data from [Analyze Boston](https://data.boston.gov/dataset/precincts). 
 2. `wards.geojson` - a geospatial dataset of the City of Boston's voting wards. I obtained this data from [Analyze Boston](https://data.boston.gov/dataset/wards). 
-3. `dem_data_by_precincts.xlsx`: a dataset containing demographic data (e.g. population, poverty, school enrollment, geographic mobility, etc.) for Boston's precincts. I requested this dataset from Boston's Planning and Development Agency (BPDA), which sourced the data from U.S. Census Bureau and American Community Survey 2014-2018 5-year Estimates and BPDA Research Division analysis.
+3. `dem_data_by_precincts.xlsx`: a dataset containing demographic data (e.g. population, poverty, school enrollment, geographic mobility, etc.) on Boston's precincts. I requested this dataset from Boston's Planning and Development Agency (BPDA), which sourced the data from U.S. Census Bureau and American Community Survey 2014-2018 5-year Estimates and BPDA Research Division analysis.
 4. `elections_data.xlsx`: a dataset containing the number of residents, registered voters, votes cast, and voter turnout for Boston's precincts in municipal elections from November 2005 to November 2017 (excluding special municipal elections and preliminary municipal elections). I created this dataset using the [election data](https://www.boston.gov/departments/elections/state-and-city-election-results) available on the City of Boston website. Two important notes: (1) I calculated voter turnout for each precinct according to the City's definition: the number of votes cast divded by the number of registered voters. (2) I did not include data from the most recent municipal election in November 2019 because I could only find [unofficial election data](https://www.boston.gov/sites/default/files/embed/u/unofficial_ward_and_precinct_breakdown_for_november_5_2019_-_updated.pdf) on the City of Boston website and the City did not respond to my request for official results or confirmation of the unofficial results. 
 
 ```{r setup, include = FALSE, echo=FALSE, message=FALSE, warning=FALSE}
