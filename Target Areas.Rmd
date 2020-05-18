@@ -17,7 +17,7 @@ library(readxl)
 
 I created a dataset using the [election data](https://www.boston.gov/departments/elections/state-and-city-election-results) available on the City of Boston website. I included municipal elections from November 2005 to November 2017. I excluded special municipal elections and preliminary municipal elections. I did not include data from the November 2019 municipal election because, as of right now, I only have access to unofficial election data. However, I do compare my findings with the 2019 unofficial results (see the Recommendations section at the end of this document).
 
-The dataset contains 5 variables (columns (ward, precinct, election date, number of registered voters, number of votes cast, number of residents). I calculate a 6th (turnout, defined as number of votes divided by number of registered voters as a percentage). 
+The dataset contains 5 variables/columns (ward, precinct, election date, number of registered voters, number of votes cast, number of residents). I calculate a 6th (turnout, defined as number of votes divided by number of registered voters as a percentage). 
 
 ```{r message=FALSE, warning=FALSE}
 # Reading in and processing the data
