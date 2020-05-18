@@ -24,7 +24,7 @@ library(tidyverse)
 library(stringr)
 library(readxl)
 library(janitor)
-library(gt)
+#library(gt)
 library(classInt)
 library(sf)
 library(magick)
@@ -145,43 +145,44 @@ map_data = map_data %>%
   mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
 
 maplist = lapply(year_range, function(yr) {
-  ggmap = ggplot(map_data %>% filter(year == yr)) + 
-    geom_sf(aes(fill = turnout_class,
-                geometry = geometry),                                       
-                colour = 'white',
-                size = 0.3) +
-    scale_fill_brewer(palette = "PuBu",
-                      name = "Voter Turnout (%)") +
-    labs(x = NULL, y = NULL,                                                          
-       title = paste(yr, "Voter Turnout in Boston"),      
-       subtitle = "% of registered voters who voted in the municipal election") +  
-    theme(panel.background = element_blank(),                                       
-        line = element_blank(),                                                    
-        axis.text = element_blank(),                                                
-        axis.title = element_blank(),
-        plot.subtitle=element_text(size=9)) +                                               
-    coord_sf(datum = NA)
-  
-    ggsave(paste('../anim-', yr, '.png', sep=''),
-           width = 10, height = 4, units = 'in', pointsize = 12, dpi=150)
-    
-    return(ggmap)
-  })
+   ggmap = ggplot(map_data %>% filter(year == yr)) + 
+     geom_sf(aes(fill = turnout_class,
+                 geometry = geometry),
+             show.legend = "polygon",
+             colour = 'white',
+             size = 0.3) +
+     scale_fill_brewer(palette = "PuBu",
+                       name = "Voter Turnout (%)") +
+     labs(x = NULL, y = NULL,                                                                
+        title = paste(yr, "Voter Turnout in Boston"),      
+        subtitle = "% of registered voters who voted in the municipal election") +  
+     theme(panel.background = element_blank(),                                       
+         line = element_blank(),                                                    
+         axis.text = element_blank(),                                                
+         axis.title = element_blank(),
+         plot.subtitle=element_text(size=9)) +                                                     
+     coord_sf(datum = NA)
+   
+     ggsave(paste('../anim-', yr, '.png', sep=''),
+            width = 10, height = 4, units = 'in', pointsize = 12, dpi=150)
+     
+     return(ggmap)
+   })
 
-imglayers = sapply(year_range, function(yr) {
-  image_read(paste('../anim-', yr, '.png', sep=''))
-})
+ imglayers = sapply(year_range, function(yr) {
+   image_read(paste('../anim-', yr, '.png', sep=''))
+ })
 
-image_animate(image_join(imglayers), fps = 0.8, dispose = "previous")
+ image_animate(image_join(imglayers), fps = 1, dispose = "previous")
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-ggplot() +                                                                    
-  geom_sf(data = map_data,                                                      
-          aes(fill = turnout_class,
-              geometry = geometry),                                       
+ggplot(data = map_data) +                                                                    
+  geom_sf(aes(geometry = geometry,
+              fill = turnout_class),
+          show.legend = "polygon",
           colour = 'black',                                                         
-          size = 0.1) +                                                             
+          size = 0.1) +                                                      
   scale_fill_brewer(palette = "PuBu",                                                
                     name = "Voter Turnout (%)") +                               
   labs(x = NULL, y = NULL,                                                          
@@ -398,7 +399,8 @@ map_data = map_data %>%
 ggplot() +
   geom_sf(data = map_data,                                                      
           aes(fill = turnout_class,
-              geometry = geometry),                                       
+              geometry = geometry), 
+          show.legend = "polygon",
           colour = 'black',                                                         
           size = 0.1) +                                                             
   scale_fill_brewer(palette = "PuBu",                                                
@@ -458,10 +460,11 @@ classes = classIntervals(map_data$turnout, n = 3, style = "jenks")
 map_data = map_data %>% 
   mutate(turnout_class = cut(turnout, classes$brks, include.lowest = T))
 
-map_wards_turnout = ggplot() +                                                                          
+ggplot() +                                                                          
   geom_sf(data = map_data,                                                      
           aes(fill = turnout_class,
-              geometry = geometry),                                       
+              geometry = geometry), 
+          show.legend = "polygon",
           colour = 'black',                                                         
           size = 0.1) + 
   scale_fill_brewer(palette = "PuBu",                                                
