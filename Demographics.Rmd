@@ -1,5 +1,5 @@
 ---
-title: "A Quantitative Analysis of Turnout in Boston's Municipal Elections"
+title: "Analyzing Turnout in Boston's Municipal Elections"
 author: "Dasha Metropolitansky"
 date: "4/2/2020"
 output: html_document
@@ -18,20 +18,20 @@ I used 4 datasets in this analysis:
 3. `dem_data_by_precincts.xlsx`: a dataset containing demographic data (e.g. population, poverty, school enrollment, geographic mobility, etc.). I requested this dataset from Boston's Planning and Development Agency (BPDA), which created it using the U.S. Census Bureau and American Community Survey 5-year Estimates from 2014-2018 and BPDA Research Division analysis.
 4. `elections_data.xlsx`: a dataset containing the number of residents, the number of registered voters, the number of votes cast, and voter turnout for each precinct in Boston's municipal election from November 2005 to November 2017 (excluding special municipal elections nad preliminary municipal elections). I created this dataset using the [election data](https://www.boston.gov/departments/elections/state-and-city-election-results) available on the City of Boston website. Two important notes: (1) I calculated voter turnout for each precinct according to the City's definition: the number of votes cast divded by the number of registered voters. (2) I did not include data from the November 2019 election because I could only find [unofficial election data](https://www.boston.gov/sites/default/files/embed/u/unofficial_ward_and_precinct_breakdown_for_november_5_2019_-_updated.pdf) on the City of Boston website for this election.
 
-```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+```{r setup, include = FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 # Loading packages
 library(tidyverse)
 library(stringr)
 library(readxl)
 library(janitor)
-#library(gt)
+library(gt)
 library(classInt)
 library(sf)
 library(magick)
 library(corrplot)
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r include = FALSE, echo=FALSE, message=FALSE, warning=FALSE}
 # Reading in the elections dataset
 election_data = read_xlsx("elections_data.xlsx") %>% 
   mutate(election = as.character(election),
@@ -128,7 +128,9 @@ election_data %>%
               column_labels.background.color = "#deebf7")
 ```
 
-I illustrate the yearly turnout breakdown in two ways: an animated map of voter turnout in Boston and a series of static maps corresponding to each municipal election. 
+I illustrated this yearly turnout breakdown in two ways... 
+
+An animated map of voter turnout in Boston:
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 map_data = election_data %>% 
@@ -176,6 +178,8 @@ maplist = lapply(year_range, function(yr) {
  image_animate(image_join(imglayers), fps = 1, dispose = "previous")
 ```
 
+A series of static maps corresponding to each municipal election:
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(data = map_data) +                                                                    
   geom_sf(aes(geometry = geometry,
@@ -208,13 +212,14 @@ ggplot(data = map_data) +
 ```
 
 **Key take-aways**
-1. Election turnout is much higher in mayoral election years (2005, 2009, 2013, 2017) than other municipal election years, like city council races. In mayoral elections, average turnout ranged from 28-38% whereas in other municipal elections, average turnout ranged from 13-18%. That's a gap of anywhere from 10 to 25 percentage points. 
 
+1. Election turnout is much higher in mayoral election years (2005, 2009, 2013, 2017) than other municipal election years, like city council races. In mayoral elections, average turnout ranged from 28-38% whereas in other municipal elections, average turnout ranged from 13-18%. That's a gap of anywhere from 10 to 25 percentage points. 
 2. Turnout varies widely across Boston's precincts. There's anywhere from a 38 to 70 percentage point gap between the lowest turnout precinct and the highest turnout precinct in a given election year. 
 
 ### Geographic analysis
 
-Since voter turnout varies significantly across Boston's precincts, there are two obvious questions that follow:
+Since voter turnout varies significantly across Boston's precincts, there are two obvious questions that follow: 
+
 1. Are precincts consistently low or high turnout, or does their turnout vary significantly each year? 
 2. If precincts tend to have consistent turnout levels, what are the low turnout and high turnout areas?
 
@@ -238,7 +243,7 @@ bottom_10_precincts = lowest_turnout %>%
 
 There are `r nrow(bottom_10_precincts)` precincts that have made the bottom 10 at least once in the elections from 2005 to 2017: 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-bottom_10_precincts %>%
+data.frame(bottom_10_precincts) %>%
   gt() %>% 
   cols_label(ward = "Ward", precinct = "Precinct", n = "# of times in Bottom 10") %>%
   cols_align("center") %>%
@@ -258,7 +263,7 @@ bottom_10_wards = lowest_turnout %>%
 
 There are only `r nrow(bottom_10_wards)` wards that have ever been in the bottom 10 from 2005 to 2017:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-bottom_10_wards %>% 
+data.frame(bottom_10_wards) %>% 
   gt() %>% 
   cols_label(ward = "Ward", n = "# of Times in Bottom 10", pct = "% of Precincts") %>%
   cols_align("center") %>%
@@ -279,7 +284,7 @@ bottom_10_freq = lowest_turnout %>%
 `r bottom_10_freq[6, 2]` of `r nrow(bottom_10_precincts)` precincts have made the bottom 10 in 7 out of the 7 elections from 2005 to 2017. Only `r bottom_10_freq[1, 2]` made the bottom 10 once. Here's a chart showing, on the left, the number of times in the bottom 10 (out of 7 past elections), and on the right, the number of precincts (out of 14) who have been in the bottom 10 that many times:
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-bottom_10_freq %>% 
+data.frame(bottom_10_freq) %>% 
   gt() %>% 
   cols_label(num_times_in_bottom = "# of Times in Bottom 10", freq = "# of Precincts") %>%
   cols_align("center") %>%
@@ -308,7 +313,7 @@ top_10_precincts = highest_turnout %>%
 Next, I turn to the top 10. There are `r nrow(top_10_precincts)` precincts that have made the top 10 at least once in the elections from 2005 to 2017: 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-top_10_precincts %>% 
+data.frame(top_10_precincts) %>% 
   gt() %>% 
   cols_label(ward = "Ward", precinct = "Precinct", n = "# of times in Top 10") %>%
   cols_align("center") %>%
@@ -328,7 +333,7 @@ top_10_wards = highest_turnout %>%
 
 There are only `r nrow(top_10_wards)` wards that have ever been in the top 10 from 2005 to 2017: 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-top_10_wards %>% 
+data.frame(top_10_wards) %>% 
   gt() %>% 
   cols_label(ward = "Ward", n = "# of Times in Top 10", pct = "% of Precincts") %>%
   cols_align("center") %>%
@@ -348,7 +353,7 @@ top_10_freq = highest_turnout %>%
 
 `r top_10_freq[6, 2]` of `r nrow(top_10_precincts)` precincts have made the bottom 10 in 7 out of the 7 elections from 2005 to 2017. Only `r top_10_freq[1, 2]` made the bottom 10 once. Here's a chart showing, on the left, the number of times in the bottom 10 (out of 7 past elections), and on the right, the number of precincts (out of 14) who have been in the bottom 10 that many times:
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-top_10_freq %>% 
+data.frame(top_10_freq) %>% 
   gt() %>% 
   cols_label(num_times_in_bottom = "# of Times in Top 10", freq = "# of Precincts") %>%
   cols_align("center") %>%
@@ -359,7 +364,7 @@ top_10_freq %>%
 
 On a precinct level, these are the precincts that have been in the bottom 10 in all of the past elections:
 ```{r echo=FALSE, message=FALSE, warning=FALSE} 
-bottom_10_precincts %>% 
+data.frame(bottom_10_precincts) %>% 
   filter(n == 7) %>% 
   gt() %>% 
   cols_label(ward = "Ward", precinct = "Precinct", n = "# of times in Bottom 10") %>%
@@ -371,7 +376,7 @@ bottom_10_precincts %>%
 
 Figure X shows the precincts that have been in the top 10 in all of the past elections:
 ```{r echo=FALSE, message=FALSE, warning=FALSE} 
-top_10_precincts %>% 
+data.frame(top_10_precincts) %>% 
   filter(n == 7) %>% 
   gt() %>% 
   cols_label(ward = "Ward", precinct = "Precinct", n = "# of times in Bottom 10") %>%
@@ -488,6 +493,7 @@ ggplot() +
 ```
 
 **Key take-away**
+\newline
 Low turnout precincts in Boston are consistently low turnout, whereas high turnout precincts are, for the most part, NOT consistently high turnout. We know this for two reasons:
 1. The pool of precincts and wards that have ever been in the bottom top is much smaller than their top 10 counterpart: `r nrow(bottom_10_precincts)` precincts and `r nrow(bottom_10_wards)` wards in the bottom 10 vs. `r nrow(top_10_precincts)` precincts and `r nrow(top_10_wards)` wards in the top 10. 
 2. `r bottom_10_freq[6, 2]` of `r nrow(bottom_10_precincts)`, or `r bottom_10_freq[6, 2]/nrow(bottom_10_precincts)`% of precincts in the bottom 10 have been among the lowest turnout precincts for 7 out of 7 years. Very few (only `r bottom_10_freq[1, 2]`) have made it only once. The statistics are flipped for the top turnout precincts: only `r top_10_freq[6, 2]` of `r nrow(top_10_precincts)`, or `r top_10_freq[6, 2]/nrow(top_10_precincts)`% of precincts in the top 10 have been among the highest turnout precincts for 7 out of 7 years, whereas `r top_10_freq[1, 2]` (`r top_10_freq[1, 2]/nrow(top_10_precincts)`%) have made it only once. 
@@ -539,6 +545,7 @@ corrplot(matrix, method = "circle", col = colours(200),
 ```
 
 We're most interested in the top row of this matrix, which shows correlations between turnout and the other variables in the demographic dataset. We could simply look at the strongest correlation values (i.e. furthest from 0, either positive or negative) and draw conclusions from that, however, there are two major problems with this approach:
+
 1. We have no sense of whether these correlations are statistically significant. 
 2. There is very high *multicollinearity* in this dataset, which means that many of the covariates (the demographic variables) are correlated with each other. Some of these correlations are obvious (for example, the percentage of males in a precinct is clearly going to be perfectly negatively correlated with the percentage of females), and some are more subtle (for example, the matrix shows a strong positive correlation between the percentage of the population that lived in the same house in the past year and the percentage of the population that has a high school-level education or less). These relationships between our variables mean that we can't just blindly look at the correlations between turnout and all of the demographic variables in our dataset since there are many relationships between the variables themselves that might be skewing these numbers. 
 
@@ -556,4 +563,5 @@ summary(mod)
 From this output, we can see that there are three variables which have a statistically significant correlation with voter turnout: `same_house` (which corresponds to the proportion of the population that lived in the same home in Boston over the past year, and this variable has positive correlation with turnout), `total_adult` (which corresponds to the size of the population, and this variables has a negative correlation with turnout), and `below_poverty` (which corresponds to the proportion of the population below the poverty line, and this variables has a negative correlation with turnout).
 
 **Key take-away**
+
 The demographic variables that are most strongly correlated with voter turnout and statistically significant are the proportion of the people who have lived in the same Boston neighborhood for over a year (positive correlation), the size of the population (negative correlation), and the proportion of the population that is under the poverty line (negative correlation). The proportion of students enrolled in university had a strong negative correlation with turnout, which makes sense as Ward 21, which has the largest proportion of precincts in the bottom 10 over the past 7 years, has a high percentage of university students in its population. 
