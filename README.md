@@ -3,7 +3,7 @@
 ## Project Description
 My team in [DPI-663](https://innovategovernment.org/), a Harvard Kennedy School class on Technology and Innovation in Government, worked with the City of Boston’s Elections Commission and the Department of Innovation and Technology to tackle low voter-turnout in Boston's municipal elections. Our goal was to develop policy recommendations and product prototypes that Boston can implement to improve turnout in future municipal elections. In order to better understand the problem, I dug into some data! 
 
-You can see the final write-up of my analysis [here](https://rpubs.com/dashamet/boston-elections). 
+You can view the final write-up of my analysis [here](https://rpubs.com/dashamet/boston-elections). 
 
 To learn more about the project, check out our blogs and final presentation [here](https://innovategovernment.org/boston-elections-2020). 
 
